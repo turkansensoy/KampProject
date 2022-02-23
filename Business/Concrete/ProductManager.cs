@@ -15,6 +15,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Core.Aspects.Autofac.Caching;
+using System.Transactions;
+using Core.Aspects.Autofac.Transaction;
+using Core.Aspects.Autofac.Performance;
 
 namespace Business.Concrete
 {
@@ -25,7 +29,7 @@ namespace Business.Concrete
         //iş katmanı iş süreçlerinin yazıldıgı yer
         ICategoryService _categoryService;
         // bir entityManager başka entity'i injecte edemez.sadece IproductDal'ı yapabilir.başka bir dal eklenemez
-        public ProductManager(IProductDal productDal,ICategoryService categoryService)
+        public ProductManager(IProductDal productDal, ICategoryService categoryService)
         {
             _ProductDal = productDal;
             _categoryService = categoryService;
@@ -40,21 +44,23 @@ namespace Business.Concrete
 
         [SecuredOperation("product.add,admin")]
         [ValidationAspect(typeof(ProductValidator))]
+        [CacheRemoveAspect("IProductService.Get")]
         public IResult Add(Product product)
         {
             //business kod =iş gereksinimler,ihtiyaclarımıza uygunluktur.
             //validation=doğrulama eklemeye calışılan varlık product nesneyi iş kurallarına dahil etmek için yapısal olarak 
             //uygun olup olmadıgı kontrl etmeye dogrulama denir.
-            IResult result=BusinessRules.Run(CheckIfProductCountOfCategoryCorrect(product.CategoryId),
+            IResult result = BusinessRules.Run(CheckIfProductCountOfCategoryCorrect(product.CategoryId),
                 CheckIfProductExists(product.ProductName), CheckIfCategoryLimitExceded());
-            if (result !=null)
+            if (result != null)
             {
-               return  result;
+                return result;
             }
             _ProductDal.Add(product);
             return new SuccessResult(Messages.ProductAdded);
-           
+
         }
+        [CacheAspect] //key value
         public IDataResult<List<Product>> GetAll()
         {
             if (DateTime.Now.Hour == 22)
@@ -69,7 +75,8 @@ namespace Business.Concrete
         {
             return new SuccessDataResult<List<Product>>(_ProductDal.GetAll(p => p.CategoryId == id));
         }
-
+        [CacheAspect]
+       // [PerformanceAspect(5)]
         public IDataResult<Product> GetById(int productId)
         {
             return new SuccessDataResult<Product>(_ProductDal.Get(p => p.ProductId == productId));
@@ -84,7 +91,8 @@ namespace Business.Concrete
         {
             return new SuccessDataResult<List<ProductDetailDto>>(_ProductDal.GetProductDetails());
         }
-
+        [ValidationAspect(typeof(ProductValidator))]
+        [CacheRemoveAspect("IProductService.Get")]
         public IResult Update(Product product)
         {
             _ProductDal.Update(product);
@@ -101,7 +109,7 @@ namespace Business.Concrete
         }
         private IResult CheckIfProductExists(string productName)
         {
-            var result=_ProductDal.GetAll(p=>p.ProductName == productName);
+            var result = _ProductDal.GetAll(p => p.ProductName == productName);
             if (result.Any())
             {
                 return new ErrorResult(Messages.ProductNameAlreadyExists);
@@ -112,11 +120,22 @@ namespace Business.Concrete
         private IResult CheckIfCategoryLimitExceded()
         {
             var results = _categoryService.GetAll();
-            if (results.Data.Count>15)
+            if (results.Data.Count > 15)
             {
                 return new ErrorResult(Messages.CategoryLimitExceded);
             }
-            return new SuccessResult();       
+            return new SuccessResult();
+        }
+        [TransactionScopeAspect]
+        public IResult AddTransactionalTest(Product product)
+        {
+            Add(product);
+            if (product.UnitPrice < 10)
+            {
+                throw new Exception("");
+            }
+            Add(product);
+            return null;
         }
     }
 }
