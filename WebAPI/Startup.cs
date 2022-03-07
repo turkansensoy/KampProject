@@ -41,6 +41,7 @@ namespace WebAPI
             /*
             services.AddSingleton<IProductService, ProductManager>();
             services.AddSingleton<IProductDal, EfProductDal>(); */
+            services.AddCors(); //Frontend alanýnda api'ye eriþmek için yapýlýr
             var tokenOptions = Configuration.GetSection("TokenOptions").Get<TokenOptions>();
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -70,6 +71,9 @@ namespace WebAPI
             {
                 app.UseDeveloperExceptionPage();
             }
+            app.ConfigureCustomExceptionMiddleware();
+
+            app.UseCors(builder => builder.WithOrigins("http://localhost:4200").AllowAnyHeader()); //bu adressden istek gelirse izin ver demektir.get,post,put
 
             app.UseHttpsRedirection();
 

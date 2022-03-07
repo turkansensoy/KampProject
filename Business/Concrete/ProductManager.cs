@@ -42,7 +42,7 @@ namespace Business.Concrete
        [Transaction] //Hata olursa geri al
          //bunlara AOP denir */
 
-        [SecuredOperation("product.add,admin")]
+       [SecuredOperation("product.add,admin")]
         [ValidationAspect(typeof(ProductValidator))]
         [CacheRemoveAspect("IProductService.Get")]
         public IResult Add(Product product)
